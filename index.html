@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Object Removal</title>
+    <style>
+        :root {
+            --primary-color: #2196F3;
+            --secondary-color: #FFC107;
+            --danger-color: #f44336;
+            --success-color: #4CAF50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .canvas-container {
+            position: relative;
+            margin: 1rem auto;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+        }
+
+        #imageCanvas, #drawCanvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+            border-radius: 8px;
+        }
+
+        #drawCanvas {
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        #imageCanvas {
+            z-index: 0;
+        }
+
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .button-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .button-secondary {
+            background-color: var(--secondary-color);
+            color: black;
+        }
+
+        .button-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .button-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .tools-panel {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .brush-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .history-panel {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem;
+            border-radius: 5px;
+            color: white;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .image-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload-label:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Advanced Object Removal Tool</h1>
+            <p>Upload an image and precisely remove unwanted objects</p>
+        </div>
+
+        <div class="tools-panel">
+            <form id="uploadForm" class="toolbar">
+                <label class="file-upload-label tooltip">
+                    <span class="tooltiptext">Upload Image</span>
+                    <input type="file" name="file" accept="image/*" id="imageInput">
+                    📁 Choose File
+                </label>
+                <div class="brush-controls">
+                    <label>Brush Size:</label>
+                    <input type="range" id="brushSize" min="1" max="50" value="10">
+                    <span id="brushSizeValue">10px</span>
+                </div>
+                <button type="button" id="undoButton" class="button button-secondary tooltip">
+                    <span class="tooltiptext">Undo Last Action</span>
+                    ↩️ Undo
+                </button>
+                <button type="button" id="redoButton" class="button button-secondary tooltip">
+                    <span class="tooltiptext">Redo Last Action</span>
+                    ↪️ Redo
+                </button>
+                <button type="button" id="clearDrawing" class="button button-danger tooltip">
+                    <span class="tooltiptext">Clear All Markings</span>
+                    🗑️ Clear
+                </button>
+                <button type="button" id="zoomIn" class="button button-secondary tooltip">
+                    <span class="tooltiptext">Zoom In</span>
+                    🔍+
+                </button>
+                <button type="button" id="zoomOut" class="button button-secondary tooltip">
+                    <span class="tooltiptext">Zoom Out</span>
+                    🔍-
+                </button>
+                <button type="button" id="resetZoom" class="button button-secondary tooltip">
+                    <span class="tooltiptext">Reset Zoom</span>
+                    🔄 Reset
+                </button>
+            </form>
+        </div>
+
+        <div class="canvas-wrapper">
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="imageCanvas"></canvas>
+                <canvas id="drawCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <button id="removeObject" class="button button-success tooltip">
+                <span class="tooltiptext">Remove Selected Objects</span>
+                🎯 Remove Objects
+            </button>
+            <button id="downloadButton" class="button button-primary tooltip">
+                <span class="tooltiptext">Download Result</span>
+                💾 Download
+            </button>
+        </div>
+
+        <div class="image-info" id="imageInfo">
+            No image loaded
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="status-message" id="statusMessage"></div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const drawCanvas = document.getElementById('drawCanvas');
+        const clearButton = document.getElementById('clearDrawing');
+        const removeButton = document.getElementById('removeObject');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const brushSize = document.getElementById('brushSize');
+        const brushSizeValue = document.getElementById('brushSizeValue');
+        const undoButton = document.getElementById('undoButton');
+        const redoButton = document.getElementById('redoButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        const resetZoom = document.getElementById('resetZoom');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const imageInfo = document.getElementById('imageInfo');
+        
+        const imageCtx = imageCanvas.getContext('2d');
+        const drawCtx = drawCanvas.getContext('2d');
+        
+        let image = new Image();
+        let drawing = false;
+        let drawnPaths = [];
+        let undoStack = [];
+        let redoStack = [];
+        let currentScale = 1;
+        let startX, startY;
+        let lastX, lastY;
+
+        // Initialize brush size
+        brushSize.addEventListener('input', (e) => {
+            brushSizeValue.textContent = `${e.target.value}px`;
+        });
+
+        function showMessage(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = message;
+            statusMessage.style.display = 'block';
+            statusMessage.style.backgroundColor = 
+                type === 'success' ? '#4CAF50' :
+                type === 'error' ? '#f44336' :
+                '#2196F3';
+            
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 3000);
+        }
+
+        function updateImageInfo() {
+            if (image.src) {
+                const size = (imageCanvas.width * imageCanvas.height * 4 / 1024 / 1024).toFixed(2);
+                imageInfo.innerHTML = `
+                    Image Size: ${imageCanvas.width} x ${imageCanvas.height}px<br>
+                    Approximate Memory: ${size}MB<br>
+                    Scale: ${(currentScale * 100).toFixed(0)}%
+                `;
+            } else {
+                imageInfo.textContent = 'No image loaded';
+            }
+        }
+
+        function resizeCanvases(width, height) {
+            const maxWidth = window.innerWidth * 0.8;
+            const maxHeight = window.innerHeight * 0.6;
+            
+            let newWidth = width;
+            let newHeight = height;
+            
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                newWidth = width * ratio;
+                newHeight = height * ratio;
+            }
+            
+            imageCanvas.width = newWidth;
+            imageCanvas.height = newHeight;
+            drawCanvas.width = newWidth;
+            drawCanvas.height = newHeight;
+            
+            canvasContainer.style.width = newWidth + 'px';
+            canvasContainer.style.height = newHeight + 'px';
+            
+            return { width: newWidth, height: newHeight };
+        }
+
+        function saveState() {
+            undoStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+            redoStack = []; // Clear redo stack when new action is performed
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            undoButton.disabled = undoStack.length === 0;
+            redoButton.disabled = redoStack.length === 0;
+        }
+
+        function undo() {
+            if (undoStack.length > 0) {
+                redoStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+                const imageData = undoStack.pop();
+                drawCtx.putImageData(imageData, 0, 0);
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redo() {
+            if (redoStack.length > 0) {
+                undoStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+                const imageData = redoStack.pop();
+                drawCtx.putImageData(imageData, 0, 0);
+                updateUndoRedoButtons();
+            }
+        }
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    image = new Image();
+                    image.onload = function() {
+                        const dimensions = resizeCanvases(image.width, image.height);
+                        imageCtx.drawImage(image, 0, 0, dimensions.width, dimensions.height);
+                        clearDrawing();
+                        updateImageInfo();
+                        showMessage('Image loaded successfully', 'success');
+                    };
+                    image.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function setZoom(scale) {
+            currentScale = scale;
+            const width = image.width * scale;
+            const height = image.height * scale;
+            
+            resizeCanvases(width, height);
+            imageCtx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+            imageCtx.drawImage(image, 0, 0, width, height);
+            
+            updateImageInfo();
+        }
+
+        zoomIn.addEventListener('click', () => {
+            setZoom(currentScale * 1.2);
+        });
+
+        zoomOut.addEventListener('click', () => {
+            setZoom(currentScale / 1.2);
+        });
+
+        resetZoom.addEventListener('click', () => {
+            setZoom(1);
+        });
+
+        function clearDrawing() {
+            drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            drawnPaths = [];
+            undoStack = [];
+            redoStack = [];
+            updateUndoRedoButtons();
+            showMessage('Drawing cleared', 'success');
+        }
+
+        // Drawing functionality
+        drawCanvas.addEventListener('mousedown', startDrawing);
+        drawCanvas.addEventListener('mousemove', draw);
+        drawCanvas.addEventListener('mouseup', stopDrawing);
+        drawCanvas.addEventListener('mouseout', stopDrawing);
+
+        // Touch support
+        drawCanvas.addEventListener('touchstart', handleTouchStart);
+        drawCanvas.addEventListener('touchmove', handleTouchMove);
+        drawCanvas.addEventListener('touchend', stopDrawing);
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = drawCanvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            startDrawing({ offsetX: x, offsetY: y });
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = drawCanvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            draw({ offsetX: x, offsetY: y });
+        }
+
+        function startDrawing(e) {
+            drawing = true;
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            saveState();
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            
+            drawCtx.beginPath();
+            drawCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            drawCtx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+            drawCtx.lineWidth = brushSize.value;
+            drawCtx.lineCap = 'round';
+            drawCtx.lineJoin = 'round';
+            
+            drawCtx.moveTo(lastX, lastY);
+            drawCtx.lineTo(e.offsetX, e.offsetY);
+            drawCtx.stroke();
+            
+            // Draw circle at the end point
+            drawCtx.beginPath();
+            drawCtx.arc(e.offsetX, e.offsetY, brushSize.value / 2, 0, Math.PI * 2);
+            drawCtx.fill();
+            
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            
+            drawnPaths.push({
+                x: e.offsetX,
+                y: e.offsetY,
+                size: brushSize.value
+            });
+        }
+
+        function stopDrawing() {
+            drawing = false;
+        }
+
+        // Handle object removal
+        removeButton.addEventListener('click', async () => {
+            if (drawnPaths.length === 0) {
+                showMessage('Please mark areas to remove first', 'error');
+                return;
+            }
+
+            loadingOverlay.style.display = 'flex';
+
+            try {
+                // Create a temporary canvas for processing
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = imageCanvas.width;
+                tempCanvas.height = imageCanvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                // Draw original image
+                tempCtx.drawImage(imageCanvas, 0, 0);
+
+                // Create mask from drawn paths
+                const maskCanvas = document.createElement('canvas');
+                maskCanvas.width = imageCanvas.width;
+                maskCanvas.height = imageCanvas.height;
+                const maskCtx = maskCanvas.getContext('2d');
+                maskCtx.fillStyle = 'black';
+                maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+                maskCtx.globalCompositeOperation = 'destination-out';
+                maskCtx.drawImage(drawCanvas, 0, 0);
+
+                // Simple content-aware fill (you could replace this with more sophisticated algorithms)
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+                
+                // Basic inpainting algorithm
+                for (let y = 0; y < imageData.height; y++) {
+                    for (let x = 0; x < imageData.width; x++) {
+                        const i = (y * imageData.width + x) * 4;
+                        if (maskData.data[i + 3] < 128) { // If pixel is marked for removal
+                            let sumR = 0, sumG = 0, sumB = 0, count = 0;
+                            
+                            // Sample surrounding pixels
+                            for (let dy = -5; dy <= 5; dy++) {
+                                for (let dx = -5; dx <= 5; dx++) {
+                                    const sx = x + dx;
+                                    const sy = y + dy;
+                                    
+                                    if (sx >= 0 && sx < imageData.width && sy >= 0 && sy < imageData.height) {
+                                        const si = (sy * imageData.width + sx) * 4;
+                                        if (maskData.data[si + 3] >= 128) { // If pixel is not marked for removal
+                                            sumR += imageData.data[si];
+                                            sumG += imageData.data[si + 1];
+                                            sumB += imageData.data[si + 2];
+                                            count++;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (count > 0) {
+                                imageData.data[i] = sumR / count;
+                                imageData.data[i + 1] = sumG / count;
+                                imageData.data[i + 2] = sumB / count;
+                            }
+                        }
+                    }
+                }
+
+                // Update the image canvas with the processed result
+                imageCtx.putImageData(imageData, 0, 0);
+                clearDrawing();
+                showMessage('Objects removed successfully', 'success');
+            } catch (error) {
+                showMessage('Error removing objects', 'error');
+                console.error('Error:', error);
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        });
+
+        // Handle download
+        downloadButton.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'processed-image.png';
+            link.href = imageCanvas.toDataURL('image/png');
+            link.click();
+            showMessage('Image downloaded successfully', 'success');
+        });
+
+        // Set up event listeners for undo/redo
+        undoButton.addEventListener('click', undo);
+        redoButton.addEventListener('click', redo);
+        clearButton.addEventListener('click', clearDrawing);
+
+        // Initialize buttons state
+        updateUndoRedoButtons();
+    </script>
+</body>
+</html>
